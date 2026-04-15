@@ -112,11 +112,20 @@ def run_etl(payload: MeasurementIn):
         "tvoc_ppb":
         payload.ens160_tvoc_ppb,
 
+        "eco2_ppm":
+        payload.ens160_eco2_ppm,
+
+        "aqi":
+        payload.ens160_aqi,
+
         "pm1":
         payload.sps30_pm1_ugm3,
 
         "pm25":
         payload.sps30_pm2_5_ugm3,
+
+        "pm4":
+        payload.sps30_pm4_ugm3,
 
         "pm10":
         payload.sps30_pm10_ugm3,
@@ -127,8 +136,17 @@ def run_etl(payload: MeasurementIn):
         "humidity":
         humidity_final,
 
+        "pressure_hpa":
+        payload.bme688_press_hpa,
+
+        "gas_kohm":
+        payload.bme688_gas_kohm,
+
         "is_valid_record":
-        is_valid_record
-    }
+        is_valid_record,
+
+        "validations":
+        validations
+}
 
     return transformed
