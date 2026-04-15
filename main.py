@@ -38,7 +38,7 @@ def receive_measurement(payload: MeasurementIn):
         "message": "Measurement processed successfully",
         "node_id": saved["node_id"],
         "datetime": saved["datetime"],
-        "is_valid_record": saved["is_valid"]
+        "is_valid_record": saved["is_valid_record"]
     }
 
 
