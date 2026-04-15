@@ -127,7 +127,7 @@ def run_etl(payload: MeasurementIn):
         "humidity":
         humidity_final,
 
-        "is_valid":
+        "is_valid_record":
         is_valid_record
     }
 
