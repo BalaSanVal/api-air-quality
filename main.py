@@ -1,7 +1,7 @@
 from fastapi import FastAPI, HTTPException
 
 from schemas import MeasurementIn
-from etl import transform_measurement
+from etl import run_etl
 from storage import save_measurement, get_latest_measurement, get_all_measurements
 
 app = FastAPI(
@@ -27,7 +27,7 @@ def health():
 
 @app.post("/api/v1/measurements")
 def receive_measurement(payload: MeasurementIn):
-    processed = transform_measurement(payload)
+    processed = run_etl(payload)
     saved = save_measurement(processed)
 
     print("JSON procesado:")
@@ -38,7 +38,7 @@ def receive_measurement(payload: MeasurementIn):
         "message": "Measurement processed successfully",
         "node_id": saved["node_id"],
         "datetime": saved["datetime"],
-        "is_valid_record": saved["is_valid_record"]
+        "is_valid_record": saved["is_valid"]
     }
 
 
