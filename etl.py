@@ -12,10 +12,14 @@ def build_datetime(date_str, time_str):
 
 def classify_environment(node_id):
 
-    indoor_nodes = {10}
+    indoor_nodes = {1, 2}
+    outdoor_nodes = {3}
 
     if node_id in indoor_nodes:
         return "indoor"
+
+    if node_id in outdoor_nodes:
+        return "outdoor"
 
     return "unknown"
 
