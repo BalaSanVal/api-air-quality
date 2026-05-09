@@ -5,7 +5,7 @@ from pydantic import BaseModel, Field, ConfigDict
 class MeasurementIn(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    node_id: int = Field(..., ge=1)
+    node_id: int = Field(..., ge=1, le=3)
 
     date: str = Field(..., description="Formato YYYY-MM-DD")
     time: str = Field(..., description="Formato HH:MM:SS")
