@@ -115,17 +115,16 @@ def get_latest_measurement() -> dict | None:
             text("""
                 SELECT 
                     m.id_medicion,
-                    nm.id_nodo AS node_id,
+                    nm.id_nodo,
                     n.nombre AS nodo,
-                    n.tipo AS tipo_nodo,
                     n.ubicacion,
-                    m.fecha_hora,
+                    DATE_FORMAT(m.fecha_hora, '%Y-%m-%d %H:%i:%s') AS fecha_hora,
                     m.fuente,
                     m.calidad_dato,
                     scd.co2,
-                    scd.temperatura AS scd41_temperatura,
+                    scd.temperatura AS scd41_temp,
                     scd.humedad_relativa AS scd41_humedad,
-                    bme.temperatura AS bme688_temperatura,
+                    bme.temperatura AS bme688_temp,
                     bme.humedad_relativa AS bme688_humedad,
                     bme.presion_atmosferica,
                     bme.resistencia_gas,
@@ -144,8 +143,7 @@ def get_latest_measurement() -> dict | None:
                 LEFT JOIN medicion_bme688 bme ON m.id_medicion = bme.id_medicion
                 LEFT JOIN medicion_ens160 ens ON m.id_medicion = ens.id_medicion
                 LEFT JOIN medicion_sps30 sps ON m.id_medicion = sps.id_medicion
-                WHERE m.fuente = 'nodo_local'
-                ORDER BY m.fecha_hora DESC, m.id_medicion DESC
+                ORDER BY m.id_medicion DESC
                 LIMIT 1
             """)
         ).mappings().first()
@@ -164,26 +162,35 @@ def get_all_measurements() -> list[dict]:
             text("""
                 SELECT 
                     m.id_medicion,
-                    nm.id_nodo AS node_id,
+                    nm.id_nodo,
                     n.nombre AS nodo,
-                    n.tipo AS tipo_nodo,
                     n.ubicacion,
-                    m.fecha_hora,
+                    DATE_FORMAT(m.fecha_hora, '%Y-%m-%d %H:%i:%s') AS fecha_hora,
                     m.fuente,
                     m.calidad_dato,
                     scd.co2,
+                    scd.temperatura AS scd41_temp,
+                    scd.humedad_relativa AS scd41_humedad,
+                    bme.temperatura AS bme688_temp,
+                    bme.humedad_relativa AS bme688_humedad,
+                    bme.presion_atmosferica,
+                    bme.resistencia_gas,
+                    ens.aqi,
                     ens.tvoc,
                     ens.eco2,
+                    sps.pm1_0,
                     sps.pm2_5,
-                    sps.pm10
+                    sps.pm4_0,
+                    sps.pm10,
+                    sps.tamano_promedio_particula
                 FROM medicion m
                 JOIN nodo_medicion nm ON m.id_medicion = nm.id_medicion
                 JOIN nodo n ON nm.id_nodo = n.id_nodo
                 LEFT JOIN medicion_scd41 scd ON m.id_medicion = scd.id_medicion
+                LEFT JOIN medicion_bme688 bme ON m.id_medicion = bme.id_medicion
                 LEFT JOIN medicion_ens160 ens ON m.id_medicion = ens.id_medicion
                 LEFT JOIN medicion_sps30 sps ON m.id_medicion = sps.id_medicion
-                WHERE m.fuente = 'nodo_local'
-                ORDER BY m.fecha_hora DESC, m.id_medicion DESC
+                ORDER BY m.id_medicion DESC
                 LIMIT 100
             """)
         ).mappings().all()
