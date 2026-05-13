@@ -193,7 +193,7 @@ def get_all_measurements() -> list[dict]:
                 LEFT JOIN medicion_ens160 ens ON m.id_medicion = ens.id_medicion
                 LEFT JOIN medicion_sps30 sps ON m.id_medicion = sps.id_medicion
                 ORDER BY m.id_medicion DESC
-                LIMIT 100
+                LIMIT 1000
             """)
         ).mappings().all()
 
