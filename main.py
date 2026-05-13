@@ -2,11 +2,20 @@ from fastapi import FastAPI, HTTPException
 from schemas import MeasurementIn
 from etl import run_etl
 from storage import save_measurement, get_latest_measurement, get_all_measurements
+from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI(
     title="Air Quality API",
     version="1.0.0",
     description="API para recibir mediciones de nodos ESP32 y almacenarlas en AWS RDS MariaDB"
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=False,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 
