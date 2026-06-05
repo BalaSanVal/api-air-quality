@@ -64,23 +64,41 @@ def read_simat_long_csv(file_path: str, station_code: str = "GAM") -> list[dict]
     with path.open("r", encoding="utf-8-sig", newline="") as file:
         lines = file.readlines()
 
-    header_index = None
+        header_index = None
+    delimiter = ","
 
     for index, line in enumerate(lines):
         normalized = line.strip().lower()
 
-        if normalized.startswith("date,") and "id_station" in normalized:
-            header_index = index
+        possible_delimiters = [",", ";", "\t", "|"]
+
+        for candidate_delimiter in possible_delimiters:
+            columns = [
+                column.strip().lower().replace('"', "")
+                for column in normalized.split(candidate_delimiter)
+            ]
+
+            required_columns = {"date", "id_station", "id_parameter", "valor", "unit"}
+
+            if required_columns.issubset(set(columns)):
+                header_index = index
+                delimiter = candidate_delimiter
+                break
+
+        if header_index is not None:
             break
 
     if header_index is None:
+        preview = "\n".join(lines[:15])
         raise ValueError(
-            "No se encontró el encabezado del CSV SIMAT: "
-            "date,id_station,id_parameter,valor,unit"
+            "No se encontró el encabezado del CSV SIMAT. "
+            "Se esperaba una fila con las columnas: "
+            "date, id_station, id_parameter, valor, unit. "
+            f"Primeras líneas detectadas:\n{preview}"
         )
 
     data_lines = lines[header_index:]
-    reader = csv.DictReader(data_lines)
+    reader = csv.DictReader(data_lines, delimiter=delimiter)
 
     for row in reader:
         row_station = (row.get("id_station") or "").strip().upper()
