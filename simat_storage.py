@@ -15,59 +15,6 @@ SIMAT_MEASUREMENT_FIELDS = [
 ]
 
 
-def get_station_id_by_code(db, station_code: str) -> int | None:
-    """
-    Busca la estación oficial usando el prefijo del campo nombre.
-
-    Ejemplo:
-    station_code = GAM
-    nombre = GAM - Gustavo A. Madero
-    """
-    result = db.execute(
-        text("""
-            SELECT id_estacion
-            FROM estacion_oficial
-            WHERE nombre LIKE :station_pattern
-            LIMIT 1
-        """),
-        {
-            "station_pattern": f"{station_code.upper()} -%"
-        }
-    ).mappings().first()
-
-    if result is None:
-        return None
-
-    return result["id_estacion"]
-
-
-def simat_measurement_exists(db, fecha_hora, id_estacion: int) -> bool:
-    """
-    Evita duplicados.
-
-    Una medición SIMAT se considera repetida si ya existe:
-    - misma fecha_hora
-    - fuente = SIMAT
-    - mismo id_estacion
-    """
-    result = db.execute(
-        text("""
-            SELECT id_medicion
-            FROM medicion
-            WHERE fecha_hora = :fecha_hora
-              AND fuente = 'SIMAT'
-              AND id_estacion = :id_estacion
-            LIMIT 1
-        """),
-        {
-            "fecha_hora": fecha_hora,
-            "id_estacion": id_estacion,
-        }
-    ).mappings().first()
-
-    return result is not None
-
-
 def has_at_least_one_valid_value(measurements: dict) -> bool:
     """
     Si los 9 campos son NULL, no se guarda.
@@ -75,16 +22,93 @@ def has_at_least_one_valid_value(measurements: dict) -> bool:
     return any(measurements.get(field) is not None for field in SIMAT_MEASUREMENT_FIELDS)
 
 
-def save_simat_records(records: list[dict]) -> dict:
+def load_station_catalog(db) -> dict:
+    """
+    Carga una sola vez el catálogo de estaciones oficiales.
+
+    Retorna:
+    {
+        "GAM": 1,
+        "BJU": 6,
+        ...
+    }
+
+    Esto funciona porque el campo nombre está guardado como:
+    GAM - Gustavo A. Madero
+    """
+    rows = db.execute(
+        text("""
+            SELECT id_estacion, nombre
+            FROM estacion_oficial
+        """)
+    ).mappings().all()
+
+    catalog = {}
+
+    for row in rows:
+        name = row["nombre"] or ""
+
+        if " - " not in name:
+            continue
+
+        station_code = name.split(" - ", 1)[0].strip().upper()
+
+        if station_code:
+            catalog[station_code] = row["id_estacion"]
+
+    return catalog
+
+
+def load_existing_simat_keys(db, station_ids: set[int] | None = None) -> set[tuple]:
+    """
+    Carga una sola vez las mediciones SIMAT ya existentes.
+
+    Retorna un set con:
+    (fecha_hora, id_estacion)
+
+    Esto permite evitar duplicados sin hacer SELECT por cada registro.
+    """
+    if station_ids:
+        rows = db.execute(
+            text("""
+                SELECT fecha_hora, id_estacion
+                FROM medicion
+                WHERE fuente = 'SIMAT'
+                  AND id_estacion IN :station_ids
+            """),
+            {
+                "station_ids": tuple(station_ids)
+            }
+        ).mappings().all()
+    else:
+        rows = db.execute(
+            text("""
+                SELECT fecha_hora, id_estacion
+                FROM medicion
+                WHERE fuente = 'SIMAT'
+                  AND id_estacion IS NOT NULL
+            """)
+        ).mappings().all()
+
+    return {
+        (row["fecha_hora"], row["id_estacion"])
+        for row in rows
+    }
+
+
+def save_simat_records(records: list[dict], batch_size: int = 500) -> dict:
     """
     Guarda registros SIMAT en las tablas existentes:
 
     1. medicion
     2. medicion_simat
 
-    No modifica la estructura de la base de datos.
-    No guarda registros con los 9 valores nulos.
-    No duplica registros ya existentes por fecha_hora + estación.
+    Mejoras:
+    - Carga catálogo de estaciones una sola vez.
+    - Carga duplicados existentes una sola vez.
+    - No guarda registros con los 9 valores nulos.
+    - Inserta solo lo faltante.
+    - Hace commit por bloques.
     """
     db = SessionLocal()
 
@@ -94,6 +118,21 @@ def save_simat_records(records: list[dict]) -> dict:
     skipped_empty = 0
 
     try:
+        station_catalog = load_station_catalog(db)
+
+        station_ids_in_file = {
+            station_catalog[record["station_code"]]
+            for record in records
+            if record["station_code"] in station_catalog
+        }
+
+        existing_keys = load_existing_simat_keys(
+            db,
+            station_ids=station_ids_in_file if station_ids_in_file else None,
+        )
+
+        pending_commit = 0
+
         for record in records:
             station_code = record["station_code"]
             fecha_hora = record["datetime"]
@@ -103,13 +142,15 @@ def save_simat_records(records: list[dict]) -> dict:
                 skipped_empty += 1
                 continue
 
-            id_estacion = get_station_id_by_code(db, station_code)
+            id_estacion = station_catalog.get(station_code)
 
             if id_estacion is None:
                 skipped_no_station += 1
                 continue
 
-            if simat_measurement_exists(db, fecha_hora, id_estacion):
+            unique_key = (fecha_hora, id_estacion)
+
+            if unique_key in existing_keys:
                 skipped_duplicates += 1
                 continue
 
@@ -177,9 +218,16 @@ def save_simat_records(records: list[dict]) -> dict:
                 }
             )
 
+            existing_keys.add(unique_key)
             inserted += 1
+            pending_commit += 1
 
-        db.commit()
+            if pending_commit >= batch_size:
+                db.commit()
+                pending_commit = 0
+
+        if pending_commit > 0:
+            db.commit()
 
         return {
             "inserted": inserted,
