@@ -19,11 +19,30 @@ SIMAT_PARAMETERS = {
 
 def parse_simat_datetime(value: str) -> datetime:
     """
-    Convierte fechas del SIMAT como:
+    Convierte fechas del SIMAT a datetime.
+
+    El archivo general contaminantes_2026.csv puede venir como:
+    2026-01-01 00:00:00
+
+    Otros archivos pueden venir como:
     01/01/2026 00:00
-    a datetime de Python.
     """
-    return datetime.strptime(value.strip(), "%d/%m/%Y %H:%M")
+    cleaned = value.strip().replace('"', "")
+
+    possible_formats = [
+        "%Y-%m-%d %H:%M:%S",
+        "%Y-%m-%d %H:%M",
+        "%d/%m/%Y %H:%M:%S",
+        "%d/%m/%Y %H:%M",
+    ]
+
+    for date_format in possible_formats:
+        try:
+            return datetime.strptime(cleaned, date_format)
+        except ValueError:
+            continue
+
+    raise ValueError(f"Formato de fecha SIMAT no reconocido: {value}")
 
 
 def parse_float(value: str) -> Optional[float]:
