@@ -101,6 +101,9 @@ def latest_simat_measurement(station_code: str = "GAM"):
 
         return latest
 
+    except HTTPException:
+        raise
+
     except FileNotFoundError as e:
         raise HTTPException(
             status_code=404,
