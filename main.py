@@ -2,7 +2,8 @@ from fastapi import FastAPI, HTTPException
 from schemas import MeasurementIn
 from etl import run_etl
 from storage import save_measurement, get_latest_measurement, get_all_measurements
-from simat_etl import get_latest_simat_from_csv
+from simat_etl import get_latest_simat_from_csv, get_simat_records_for_import
+from simat_storage import save_simat_records, get_latest_simat_measurement_from_db
 from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI(
@@ -85,9 +86,27 @@ def list_measurements():
     }
 
 
+
 @app.get("/api/v1/simat/latest")
-def latest_simat_measurement(station_code: str = "GAM"):
+def latest_simat_measurement(station_code: str = "GAM", source: str = "csv"):
+    """
+    Consulta la última lectura SIMAT.
+
+    source=csv -> lee desde el archivo CSV sin guardar en BD.
+    source=db  -> lee desde la base de datos.
+    """
     try:
+        if source == "db":
+            latest = get_latest_simat_measurement_from_db(station_code=station_code)
+
+            if latest is None:
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"No hay mediciones SIMAT guardadas para la estación {station_code}",
+                )
+
+            return latest
+
         latest = get_latest_simat_from_csv(
             file_path="data/contaminantes_2026.csv",
             station_code=station_code,
@@ -119,5 +138,50 @@ def latest_simat_measurement(station_code: str = "GAM"):
     except Exception as e:
         raise HTTPException(
             status_code=500,
-            detail=f"Error processing SIMAT CSV: {str(e)}",
+            detail=f"Error processing SIMAT data: {str(e)}",
+        )
+
+
+@app.post("/api/v1/simat/import")
+def import_simat_measurements(station_code: str | None = None):
+    """
+    Importa mediciones SIMAT desde data/contaminantes_2026.csv hacia la base de datos.
+
+    Si station_code viene vacío:
+    - importa todas las estaciones del CSV que existan en estacion_oficial.
+
+    Si station_code = GAM:
+    - importa solo GAM.
+    """
+    try:
+        records = get_simat_records_for_import(
+            file_path="data/contaminantes_2026.csv",
+            station_code=station_code,
+        )
+
+        result = save_simat_records(records)
+
+        return {
+            "status": "ok",
+            "message": "SIMAT measurements imported successfully",
+            "station_code": station_code,
+            "summary": result,
+        }
+
+    except FileNotFoundError as e:
+        raise HTTPException(
+            status_code=404,
+            detail=str(e),
+        )
+
+    except ValueError as e:
+        raise HTTPException(
+            status_code=400,
+            detail=str(e),
+        )
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error importing SIMAT measurements: {str(e)}",
         )
