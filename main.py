@@ -2,6 +2,7 @@ from fastapi import FastAPI, HTTPException
 from schemas import MeasurementIn
 from etl import run_etl
 from storage import save_measurement, get_latest_measurement, get_all_measurements
+from simat_etl import get_latest_simat_from_csv
 from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI(
@@ -82,3 +83,38 @@ def list_measurements():
         "count": len(items),
         "items": items
     }
+
+
+@app.get("/api/v1/simat/latest")
+def latest_simat_measurement(station_code: str = "GAM"):
+    try:
+        latest = get_latest_simat_from_csv(
+            file_path="data/contaminantes_2026.csv",
+            station_code=station_code,
+        )
+
+        if latest is None:
+            raise HTTPException(
+                status_code=404,
+                detail=f"No se encontraron registros SIMAT para la estación {station_code}",
+            )
+
+        return latest
+
+    except FileNotFoundError as e:
+        raise HTTPException(
+            status_code=404,
+            detail=str(e),
+        )
+
+    except ValueError as e:
+        raise HTTPException(
+            status_code=400,
+            detail=str(e),
+        )
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error processing SIMAT CSV: {str(e)}",
+        )
