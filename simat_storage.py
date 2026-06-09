@@ -292,3 +292,63 @@ def get_latest_simat_measurement_from_db(station_code: str = "GAM") -> dict | No
 
     finally:
         db.close()
+
+
+def get_available_simat_stations_from_db() -> list[dict]:
+    """
+    Consulta las estaciones oficiales que tienen mediciones SIMAT cargadas
+    en la base de datos.
+    """
+    db = SessionLocal()
+
+    try:
+        rows = db.execute(
+            text("""
+                SELECT
+                    eo.id_estacion,
+                    eo.nombre,
+                    eo.alcaldia,
+                    eo.longitud,
+                    eo.latitud,
+                    COUNT(m.id_medicion) AS total_mediciones,
+                    DATE_FORMAT(MAX(m.fecha_hora), '%Y-%m-%d %H:%i:%s') AS ultima_fecha_hora
+                FROM estacion_oficial eo
+                JOIN medicion m
+                    ON eo.id_estacion = m.id_estacion
+                   AND m.fuente = 'SIMAT'
+                GROUP BY
+                    eo.id_estacion,
+                    eo.nombre,
+                    eo.alcaldia,
+                    eo.longitud,
+                    eo.latitud
+                HAVING COUNT(m.id_medicion) > 0
+                ORDER BY eo.nombre ASC
+            """)
+        ).mappings().all()
+
+        stations = []
+
+        for row in rows:
+            station_name = row["nombre"] or ""
+
+            if " - " in station_name:
+                station_code = station_name.split(" - ", 1)[0].strip().upper()
+            else:
+                station_code = station_name.strip().upper()
+
+            stations.append({
+                "id_estacion": row["id_estacion"],
+                "station_code": station_code,
+                "station_name": row["nombre"],
+                "alcaldia": row["alcaldia"],
+                "longitud": row["longitud"],
+                "latitud": row["latitud"],
+                "total_mediciones": row["total_mediciones"],
+                "ultima_fecha_hora": row["ultima_fecha_hora"],
+            })
+
+        return stations
+
+    finally:
+        db.close()
