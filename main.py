@@ -7,6 +7,7 @@ from simat_storage import (
     save_simat_records,
     get_latest_simat_measurement_from_db,
     get_available_simat_stations_from_db,
+    get_simat_history_from_db,
 )
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -159,6 +160,24 @@ def list_simat_stations():
         raise HTTPException(
             status_code=500,
             detail=f"Error getting SIMAT stations: {str(e)}",
+        )
+
+
+@app.get("/api/v1/simat/history")
+def get_simat_history(station_code: str = "GAM", limit: int = 200):
+    try:
+        records = get_simat_history_from_db(station_code=station_code, limit=limit)
+
+        return {
+            "station_code": station_code,
+            "count": len(records),
+            "items": records,
+        }
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error getting SIMAT history: {str(e)}",
         )
 
 @app.post("/api/v1/simat/import")
