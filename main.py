@@ -3,7 +3,11 @@ from schemas import MeasurementIn
 from etl import run_etl
 from storage import save_measurement, get_latest_measurement, get_all_measurements
 from simat_etl import get_latest_simat_from_csv, get_simat_records_for_import
-from simat_storage import save_simat_records, get_latest_simat_measurement_from_db
+from simat_storage import (
+    save_simat_records,
+    get_latest_simat_measurement_from_db,
+    get_available_simat_stations_from_db,
+)
 from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI(
@@ -141,6 +145,21 @@ def latest_simat_measurement(station_code: str = "GAM", source: str = "csv"):
             detail=f"Error processing SIMAT data: {str(e)}",
         )
 
+@app.get("/api/v1/simat/stations")
+def list_simat_stations():
+    try:
+        stations = get_available_simat_stations_from_db()
+
+        return {
+            "count": len(stations),
+            "items": stations,
+        }
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error getting SIMAT stations: {str(e)}",
+        )
 
 @app.post("/api/v1/simat/import")
 def import_simat_measurements(station_code: str | None = None):
