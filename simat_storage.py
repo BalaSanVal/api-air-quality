@@ -352,3 +352,36 @@ def get_available_simat_stations_from_db() -> list[dict]:
 
     finally:
         db.close()
+
+
+def get_simat_history_from_db(station_code: str = "GAM", limit: int = 200) -> list[dict]:
+    db = SessionLocal()
+
+    try:
+        rows = db.execute(
+            text("""
+                SELECT
+                    m.fecha_hora,
+                    eo.nombre AS estacion,
+                    ms.pm10,
+                    ms.pm2_5
+                FROM medicion m
+                JOIN medicion_simat ms
+                    ON m.id_medicion = ms.id_medicion
+                JOIN estacion_oficial eo
+                    ON m.id_estacion = eo.id_estacion
+                WHERE m.fuente = 'SIMAT'
+                  AND eo.nombre LIKE :station_pattern
+                ORDER BY m.fecha_hora DESC
+                LIMIT :limit
+            """),
+            {
+                "station_pattern": f"{station_code} -%",
+                "limit": limit,
+            }
+        ).mappings().all()
+
+        return [dict(row) for row in rows][::-1]
+
+    finally:
+        db.close()
